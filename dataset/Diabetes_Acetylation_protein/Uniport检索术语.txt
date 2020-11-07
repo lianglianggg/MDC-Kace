@@ -1,0 +1,1 @@
+disease:diabetes annotation:(type:mod_res n6-acetyllysine) AND reviewed:yes AND organism:"Homo sapiens (Human) [9606]"
