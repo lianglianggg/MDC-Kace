@@ -2,7 +2,8 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import tensorflow as tf
 config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.15
+config.gpu_options.allow_growth = True  # 不全部占满显存，按需分配
+# config.gpu_options.per_process_gpu_memory_fraction = 0.15
 session = tf.Session(config=config)
 import numpy as np
 import csv
@@ -76,20 +77,20 @@ if __name__ == '__main__':
 
     # 提取序列片段（阳性+阴性）
     # 打开阴阳数据集文件
-    f_r = open("./dataset/after_CD-HIT/test/%s/Acetylation_Pos_Neg.txt" % str(2*WINDOWS+1), "r", encoding='utf-8')
+    f_r = open("./dataset/human/after_CD-HIT(0.4)/test/%s/Acetylation_Pos_Neg.txt" % str(2 * WINDOWS + 1), "r", encoding='utf-8')
     # 正确打开文件后，读取文件内容
     Test_data = f_r.readlines()
     f_r.close()
 
     # 数据编码
-    from information_coding_e1 import one_hot, Phy_Chem_Inf_2, Structure_Inf
+    from information_coding import one_hot, Phy_Chem_Inf_2, Structure_Inf_1
     # one_hot编码序列片段
     test_X_1, test_Y = one_hot(Test_data, windows=WINDOWS)
     test_Y = to_categorical(test_Y, num_classes=2)
     # 理化属性信息
     test_X_2 = Phy_Chem_Inf_2(Test_data, windows=WINDOWS)
     # 蛋白质结构信息
-    test_X_3 = Structure_Inf(Test_data, windows=WINDOWS)
+    test_X_3 = Structure_Inf_1(Test_data, windows=WINDOWS)
 
     # 加载模型
     model = load_model(filepath='./model/yan_model_Cov1D_SE_softmax_early_3_elu_fold5.h5')
@@ -97,6 +98,14 @@ if __name__ == '__main__':
 
     # 任务预测
     predictions = model.predict(x=[test_X_1, test_X_2, test_X_3], verbose=0)
+    result = []
+    for i in range(len(Test_data)):
+        result.append(predictions[i][1])
+    index_value = sorted(enumerate(result), reverse=True, key=lambda x: x[1])
+    for i in range(len(index_value)):
+        data = Test_data[index_value[i][0]].split()
+        res_file.write(data[0] + "\t" + str(int(data[3]) + 1) + "\t" + str(index_value[i][1]) + "\t" + data[1] + "\n")
+        res_file.flush()
     # 验证预测结果
     res = perform_eval_2(predictions, test_Y, verbose=1)
     # 将测试集预测结果写入文件
@@ -106,7 +115,7 @@ if __name__ == '__main__':
     # 记录TPR和FPR
     R = np.asarray(np.uint8([sublist[1] for sublist in test_Y]))
     fpr, tpr, auc_thresholds = metrics.roc_curve(y_true=R, y_score=np.asarray(predictions)[:, 1], pos_label=1)
-    csvfile = open('./result/test/MDCAce_TPR_FPR.csv', 'w', newline='')
+    csvfile = open('./result/test/MDCKace_TPR_FPR.csv', 'w', newline='')
     writer = csv.writer(csvfile)
     writer.writerow(['TPR', 'FPR'])
     for i in range(len(tpr)):
@@ -114,7 +123,7 @@ if __name__ == '__main__':
     csvfile.close()
     # 记录Recall和Precision
     precision, recall, pr_thresholds = metrics.precision_recall_curve(y_true=R, probas_pred=np.asarray(predictions)[:, 1], pos_label=1)
-    csvfile = open('./result/test/MDCAce_P_R.csv', 'w', newline='')
+    csvfile = open('./result/test/MDCKace_P_R.csv', 'w', newline='')
     writer = csv.writer(csvfile)
     writer.writerow(['Precision', 'Recall'])
     for i in range(len(precision)):

@@ -3,7 +3,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import tensorflow as tf
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True  # 不全部占满显存，按需分配
-#config.gpu_options.per_process_gpu_memory_fraction = 0.3
+# config.gpu_options.per_process_gpu_memory_fraction = 0.3
 session = tf.Session(config=config)
 import numpy as np
 import time
@@ -340,8 +340,8 @@ if __name__ == '__main__':
     for fold in range(K_FOLD):
 
         # 从文件读取序列片段（训练+验证，阳性+阴性）
-        f_r_train = open("./dataset/after_CD-HIT/train/%s/cv_10/Acetylation_Pos_Neg_train-%d.txt" % (str(2*WINDOWS+1), fold), "r", encoding='utf-8')
-        f_r_test = open("./dataset/after_CD-HIT/train/%s/cv_10/Acetylation_Pos_Neg_test-%d.txt" % (str(2*WINDOWS+1), fold), "r", encoding='utf-8')
+        f_r_train = open("./dataset/human/after_CD-HIT(0.4)/train/%s/cv_10/Acetylation_Pos_Neg_train-%d.txt" % (str(2 * WINDOWS + 1), fold), "r", encoding='utf-8')
+        f_r_test = open("./dataset/human/after_CD-HIT(0.4)/train/%s/cv_10/Acetylation_Pos_Neg_test-%d.txt" % (str(2 * WINDOWS + 1), fold), "r", encoding='utf-8')
 
         # 训练序列片段构建
         train_data = f_r_train.readlines()
@@ -354,7 +354,7 @@ if __name__ == '__main__':
         f_r_test.close()
 
         # 数据编码
-        from information_coding_e1 import one_hot, Phy_Chem_Inf_2, Structure_Inf
+        from information_coding import one_hot, Phy_Chem_Inf_2, Structure_Inf_1
 
         # one_hot编码序列片段
         train_X_1, train_Y = one_hot(train_data, windows=WINDOWS)
@@ -365,8 +365,8 @@ if __name__ == '__main__':
         train_X_2 = Phy_Chem_Inf_2(train_data, windows=WINDOWS)
         test_X_2 = Phy_Chem_Inf_2(test_data, windows=WINDOWS)
         # 蛋白质结构信息
-        train_X_3 = Structure_Inf(train_data, windows=WINDOWS)
-        test_X_3 = Structure_Inf(test_data, windows=WINDOWS)
+        train_X_3 = Structure_Inf_1(train_data, windows=WINDOWS)
+        test_X_3 = Structure_Inf_1(test_data, windows=WINDOWS)
 
         # 引入模型
         model = build_model(windows=WINDOWS)
