@@ -16,7 +16,7 @@ from keras.layers import Input, Conv1D, MaxPooling1D, AveragePooling1D, GlobalAv
 from keras.models import Model, load_model
 from keras.regularizers import l1, l2
 from keras.utils import to_categorical
-from scipy import interp
+from scipy.interpolate import interp1d
 
 
 # 定义密集卷积块中单个卷积层
@@ -98,9 +98,6 @@ def build_model(windows=16, concat_axis=-1, denseblocks=4, layers=3, filters=96,
         # Add transition
         x_1 = transition(x_1, concat_axis=concat_axis, filters=filters_1,
                          dropout_rate=dropout_rate, weight_decay=weight_decay)
-        # Add squeeze-excitation
-        #x_1 = Activation('elu')(x_1)
-        #x_1 = squeeze_excitation_layer(x_1, filters_1, 16)
     # The last denseblock
     # Add denseblock
     x_1, filters_1 = denseblock(x_1, concat_axis=concat_axis, layers=layers,
@@ -129,9 +126,6 @@ def build_model(windows=16, concat_axis=-1, denseblocks=4, layers=3, filters=96,
         # Add transition
         x_2 = transition(x_2, concat_axis=concat_axis, filters=filters_2,
                          dropout_rate=dropout_rate, weight_decay=weight_decay)
-        # Add squeeze-excitation
-        #x_2 = Activation('elu')(x_2)
-        #x_2 = squeeze_excitation_layer(x_2, filters_2, 16)
     # The last denseblock
     # Add denseblock
     x_2, filters_2 = denseblock(x_2, concat_axis=concat_axis, layers=layers,
@@ -160,9 +154,6 @@ def build_model(windows=16, concat_axis=-1, denseblocks=4, layers=3, filters=96,
         # Add transition
         x_3 = transition(x_3, concat_axis=concat_axis, filters=filters_3,
                          dropout_rate=dropout_rate, weight_decay=weight_decay)
-        # Add squeeze-excitation
-        #x_3 = Activation('elu')(x_3)
-        #x_3 = squeeze_excitation_layer(x_3, filters_3, 16)
     # The last denseblock
     # Add denseblock
     x_3, filters_3 = denseblock(x_3, concat_axis=concat_axis, layers=layers,
@@ -195,9 +186,9 @@ def build_model(windows=16, concat_axis=-1, denseblocks=4, layers=3, filters=96,
 # 输入： predictions 预测结果，Y_test 实际标签，verbose 日志显示，0为不在标准输出流输出日志信息，1为输出进度条记录，2为每个epoch输出一行记录
 # 输出： [sn, sp, acc, pre, f1, mcc, gmean, auroc, aupr] 验证指标结果
 def perform_eval_1(predictions, Y_test, verbose=0):
-    #class_label = np.uint8([round(x) for x in predictions[:, 0]]) # round()函数进行四舍五入
-    #R_ = np.uint8(Y_test)
-    #R = np.asarray(R_)
+    # class_label = np.uint8([round(x) for x in predictions[:, 0]]) # round()函数进行四舍五入
+    # R_ = np.uint8(Y_test)
+    # R = np.asarray(R_)
     class_label = np.uint8(np.argmax(predictions, axis=1))
     R = np.asarray(np.uint8([sublist[1] for sublist in Y_test]))
 
@@ -226,9 +217,9 @@ def perform_eval_1(predictions, Y_test, verbose=0):
 # 输入： predictions 预测结果，Y_test 实际标签，verbose 日志显示，0为不在标准输出流输出日志信息，1为输出进度条记录，2为每个epoch输出一行记录
 # 输出： [sn, sp, acc, pre, f1, mcc, gmean, auroc, aupr] 验证指标结果
 def perform_eval_2(predictions, Y_test, verbose=0):
-    #class_label = np.uint8([round(x) for x in predictions[:, 0]]) # round()函数进行四舍五入
-    #R_ = np.uint8(Y_test)
-    #R = np.asarray(R_)
+    # class_label = np.uint8([round(x) for x in predictions[:, 0]]) # round()函数进行四舍五入
+    # R_ = np.uint8(Y_test)
+    # R = np.asarray(R_)
     class_label = np.uint8(np.argmax(predictions, axis=1))
     R = np.asarray(np.uint8([sublist[1] for sublist in Y_test]))
 
@@ -292,14 +283,17 @@ def write_res_2(filehandle, res):
 
 # 说明： loss-epoch，acc-epoch曲线作图函数
 def figure(history, K_FOLD, fold):
+
     def show_train_history(train_history, train_metrics, validation_metrics):
         plt.plot(train_history.history[train_metrics])
         plt.plot(train_history.history[validation_metrics])
-        plt.title('Train History')
-        plt.grid(True)  # 设置网格线
-        plt.ylabel(train_metrics)
-        plt.xlabel('Epoch')
-        plt.legend(['train', 'validation'], loc='upper left')  # 设置图例位置
+        plt.title('Train History', fontdict={'family': 'Times New Roman', 'size': 12})
+        plt.grid(True, alpha=0.4)  # 设置网格线
+        plt.xticks(fontproperties='Times New Roman', size=10)
+        plt.yticks(fontproperties='Times New Roman', size=10)
+        plt.xlabel('epochs', fontdict={'family': 'Times New Roman', 'size': 10})
+        plt.ylabel(train_metrics, fontdict={'family': 'Times New Roman', 'size': 10})
+        plt.legend(['train', 'validation'], loc='upper left', prop={'family': 'Times New Roman', 'size': 10})  # 设置图例位置
 
     # 画图显示训练过程
     def plt_fig(history, K_FOLD, fold):
@@ -328,14 +322,12 @@ if __name__ == '__main__':
     res = []
     # 交叉验证开始
     tprs = []
-    # pres = []
+    pres = []
     aurocs = []
-    # auprs = []
-    mean_fpr = np.linspace(0, 1, 100)
-    # mean_rec = np.linspace(0, 1, 100)
-    plt.figure(figsize=(12, 4))
-    # fig1, ax1 = plt.subplots()
-    # fig2, ax2 = plt.subplots()
+    auprs = []
+    mean_fpr = np.linspace(0, 1, 200)
+    mean_rec = np.linspace(0, 1, 200)
+    plt.figure(figsize=(12, 5))
     # 分层交叉验证
     for fold in range(K_FOLD):
 
@@ -377,8 +369,6 @@ if __name__ == '__main__':
         print("fold:", str(fold))
         # 早停
         history = model.fit(x=[train_X_1, train_X_2, train_X_3], y=train_Y, batch_size=BATCH_SIZE, epochs=N_EPOCH, shuffle=True, class_weight={0: 1.0, 1: 8.9}, callbacks=[EarlyStopping(monitor='val_loss', patience=20, mode='auto')], verbose=2, validation_data=([test_X_1, test_X_2, test_X_3], test_Y))
-        # 无早停
-        # history = model.fit(x=[train_X_1, train_X_2], y=train_Y, batch_size=BATCH_SIZE, epochs=N_EPOCH, shuffle=True, class_weight={0: 1.0, 1: 8.9}, verbose=1, validation_data=([test_X_1, test_X_2], test_Y))
 
         # 得到预测结果
         predictions = model.predict(x=[test_X_1, test_X_2, test_X_3], verbose=0)
@@ -396,28 +386,32 @@ if __name__ == '__main__':
         R = np.asarray(np.uint8([sublist[1] for sublist in test_Y]))
         plt.subplot(1, 2, 1)
         fpr, tpr, auc_thresholds = metrics.roc_curve(y_true=R, y_score=np.asarray(predictions)[:, 1], pos_label=1)
-        # 计算AUROC
+        # 计算AUROC，并保存
         auroc_score = metrics.auc(fpr, tpr)
-        # interp：插值，把结果添加到tprs列表中
         aurocs.append(auroc_score)
-        interp_tpr = interp(mean_fpr, fpr, tpr)
-        interp_tpr[0] = 0.0
-        tprs.append(interp_tpr)
+        # interp1d：1维插值，并把结果添加到tprs列表中
+        f1 = interp1d(fpr, tpr, kind='linear')
+        interp1d_tpr = f1(mean_fpr)
+        interp1d_tpr[0] = 0.0
+        interp1d_tpr[-1] = 1.0
+        tprs.append(interp1d_tpr)
         # 画图，只需要plt.plot(fpr, tpr)，变量auc_score只是记录auc的值，通过auc()函数计算
-        plt.plot(fpr, tpr, lw=1, alpha=0.3, label='ROC fold %d(area=%0.4f)' % (fold, auroc_score))
+        plt.plot(fpr, tpr, lw=1, alpha=0.4, label='ROC fold %d(area=%0.4f)' % (fold, auroc_score))
 
         # 画PR曲线
         plt.subplot(1, 2, 2)
         precision, recall, pr_thresholds = metrics.precision_recall_curve(y_true=R, probas_pred=np.asarray(predictions)[:, 1], pos_label=1)
-        # 计算AUPR
+        # 计算AUPR，并保存
         aupr_score = metrics.auc(recall, precision)
-        # interp：插值，把结果添加到pres列表中
-        # auprs.append(aupr_score)
-        # interp_pre = interp(mean_rec, recall, precision)
-        # interp_pre[0] = 0.0
-        # pres.append(interp_pre)
-        # 画图，只需要plt.plot(fpr, tpr)，变量auc_score只是记录auc的值，通过auc()函数计算
-        plt.plot(recall, precision, lw=1, alpha=0.3, label='PR fold %d(area=%0.4f)' % (fold, aupr_score))
+        auprs.append(aupr_score)
+        # interp1d：1维插值，并把结果添加到pres列表中
+        f2 = interp1d(recall, precision, kind='linear')
+        interp1d_pre = f2(mean_rec)
+        interp1d_pre[0] = 1.0
+        interp1d_pre[-1] = 0.0
+        pres.append(interp1d_pre)
+        # 画图，只需要plt.plot(recall, precision)，变量aupr_score只是记录aupr的值，通过auc()函数计算
+        plt.plot(recall, precision, lw=1, alpha=0.4, label='PR fold %d(area=%0.4f)' % (fold, aupr_score))
 
         # 保存训练好的模型(既保存了模型图结构，又保存了模型参数)
         model.save('./model/yan_model_Cov1D_SE_softmax_early_3_elu_fold%d.h5' % fold)
@@ -427,40 +421,34 @@ if __name__ == '__main__':
     # 画对角线
     plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Chance', alpha=.8)
     mean_tpr = np.mean(tprs, axis=0)
-    mean_tpr[-1] = 1.0
-    mean_auroc = metrics.auc(mean_fpr, mean_tpr)
+    mean_auroc = np.mean(aurocs)
     std_auroc = np.std(aurocs)
     plt.plot(mean_fpr, mean_tpr, color='b', label=r'Mean ROC (AUC = %0.4f $\pm$ %0.4f)' % (mean_auroc, std_auroc), lw=2, alpha=.8)
-    std_tpr = np.std(tprs, axis=0)
-    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-    plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2, label=r'$\pm$ 1 std. dev.')
     # plt.set(xlim=[-0.05, 1.05], xlabel='False Positive Rate', ylim=[-0.05, 1.05], ylabel='True Positive Rate', title="Receiver operating characteristic curves")
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.0])
-    plt.xlabel('False Positive Rate', fontdict={'family': 'Times New Roman', 'size': 10})
-    plt.ylabel('True Positive Rate', fontdict={'family': 'Times New Roman', 'size': 10})
-    plt.title('Receiver operating characteristic curves', fontsize=10)
-    plt.legend(loc="lower right")
+    plt.xticks(fontproperties='Times New Roman', size=12)
+    plt.yticks(fontproperties='Times New Roman', size=12)
+    plt.xlabel('False Positive Rate', fontdict={'family': 'Times New Roman', 'size': 12})
+    plt.ylabel('True Positive Rate', fontdict={'family': 'Times New Roman', 'size': 12})
+    plt.title('Receiver operating characteristic curves', fontdict={'family': 'Times New Roman', 'size': 14})
+    plt.legend(loc="lower right", prop={'family': 'Times New Roman', 'size': 8})
 
     # 画第二个子图
     plt.subplot(1, 2, 2)
-    # mean_pre = np.mean(pres, axis=0)
-    # mean_pre[-1] = 1.0
-    # mean_aupr = metrics.auc(mean_rec, mean_pre)
-    # std_aupr = np.std(auprs)
-    # plt.plot(mean_rec, mean_pre, color='b', label=r'Mean PR (AUPR = %0.3f $\pm$ %0.3f)' % (mean_aupr, std_aupr), lw=2, alpha=.8)
-    # std_pre = np.std(pres, axis=0)
-    # pres_upper = np.minimum(mean_pre + std_pre, 1)
-    # pres_lower = np.maximum(mean_pre - std_pre, 0)
-    # plt.fill_between(mean_rec, pres_lower, pres_upper, color='grey', alpha=.2, label=r'$\pm$ 1 std. dev.')
+    mean_pre = np.mean(pres, axis=0)
+    mean_aupr = np.mean(auprs)
+    std_aupr = np.std(auprs)
+    plt.plot(mean_rec, mean_pre, color='b', label=r'Mean PR (AUPR = %0.4f $\pm$ %0.4f)' % (mean_aupr, std_aupr), lw=2, alpha=.8)
     # plt.set(xlim=[-0.05, 1.05], xlabel='Recall', ylim=[-0.05, 1.05], ylabel='Precision', title="Precision-Recall curves")
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.0])
-    plt.xlabel('Recall', fontdict={'family': 'Times New Roman', 'size': 10})
-    plt.ylabel('Precision', fontdict={'family': 'Times New Roman', 'size': 10})
-    plt.title('Precision-Recall curves', fontsize=10)
-    plt.legend(loc="upper right")
+    plt.xticks(fontproperties='Times New Roman', size=12)
+    plt.yticks(fontproperties='Times New Roman', size=12)
+    plt.xlabel('Recall', fontdict={'family': 'Times New Roman', 'size': 12})
+    plt.ylabel('Precision', fontdict={'family': 'Times New Roman', 'size': 12})
+    plt.title('Precision-Recall curves', fontdict={'family': 'Times New Roman', 'size': 14})
+    plt.legend(loc="upper right", prop={'family': 'Times New Roman', 'size': 8})
     plt.savefig("./result/cv/%d折交叉-elu.png" % (K_FOLD))
     plt.close()
 

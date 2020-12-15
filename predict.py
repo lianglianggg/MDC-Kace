@@ -3,25 +3,22 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import tensorflow as tf
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True  # 不全部占满显存，按需分配
-# config.gpu_options.per_process_gpu_memory_fraction = 0.15
+# config.gpu_options.per_process_gpu_memory_fraction = 0.3
 session = tf.Session(config=config)
 import numpy as np
 import csv
-import time
-import matplotlib.pyplot as plt
 from sklearn import metrics
 from keras.models import load_model
 from keras.utils import to_categorical
-from scipy import interp
 
 
 # 说明： 性能评估函数
 # 输入： predictions 预测结果，Y_test 实际标签，verbose 日志显示，0为不在标准输出流输出日志信息，1为输出进度条记录，2为每个epoch输出一行记录
 # 输出： [sn, sp, acc, pre, f1, mcc, gmean, auroc, aupr] 验证指标结果
 def perform_eval_2(predictions, Y_test, verbose=0):
-    #class_label = np.uint8([round(x) for x in predictions[:, 0]]) # round()函数进行四舍五入
-    #R_ = np.uint8(Y_test)
-    #R = np.asarray(R_)
+    # class_label = np.uint8([round(x) for x in predictions[:, 0]]) # round()函数进行四舍五入
+    # R_ = np.uint8(Y_test)
+    # R = np.asarray(R_)
     class_label = np.uint8(np.argmax(predictions, axis=1))
     R = np.asarray(np.uint8([sublist[1] for sublist in Y_test]))
 
