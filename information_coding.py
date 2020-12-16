@@ -38,7 +38,7 @@ def one_hot(data, windows=16):
 # 说明： 氨基酸理化信息编码
 # 输入： data
 # 输出： data_X
-def Phy_Chem_Inf_2(data, windows=16):
+def Phy_Chem_Inf(data, windows=16):
     letterDict = {}
     letterDict["A"] = [-0.591, -1.302, -0.733, 1.570, -0.146]
     letterDict["C"] = [-1.343, 0.465, -0.862, -1.020, -0.255]
@@ -85,10 +85,10 @@ def Phy_Chem_Inf_2(data, windows=16):
     return data_X
 
 
-# 说明： 蛋白质结构信息编码(for human)
+# 说明： 蛋白质结构信息编码
 # 输入： data
 # 输出： data_X
-def Structure_Inf_1(data, windows=16):
+def Structure_Inf(data, windows=16):
     # define dictionary
     Dict = {}
     for index in range(1, 62):
@@ -146,59 +146,3 @@ def Structure_Inf_1(data, windows=16):
             offset = offset + 1
 
     return data_X
-
-# 说明： 蛋白质结构信息编码(for Mus musculus or Escherichia coli)
-# 输入： data
-# 输出： data_X
-def Structure_Inf_2(data, windows=16):
-    # define input string
-    data = data
-    length = len(data)
-    # define empty array
-    data_X = np.zeros((length, 2*windows+1, 8))
-    for i in range(length):
-        x = data[i].split()
-        # 编码蛋白质结构信息
-        f_r = open("./dataset/Mus_musculus/Structure_information/%s.i1" % x[0], "r", encoding='utf-8')
-        lines = f_r.readlines()
-        List = []
-        for line in lines:
-            z = line.split()
-            if z[0] != '#':
-                List.append(line)
-        f_r.close()
-        # 检查List和data中赖氨酸位置标识是否相同
-        k = List[int(x[3])].split()
-        if int(k[0]) != int(x[3]) + 1:
-            exit()
-        j = 0
-        offset = 0
-        for AA in x[2]:
-            if AA != '-':
-                value = List[int(x[3]) - windows + offset].split()
-                data_X[i][j][0] = value[4]
-                data_X[i][j][1] = value[5]
-                data_X[i][j][2] = value[6]
-                data_X[i][j][3] = value[7]
-                data_X[i][j][4] = value[8]
-                data_X[i][j][5] = value[14]
-                data_X[i][j][6] = value[13]
-                data_X[i][j][7] = value[12]
-            else:
-                data_X[i][j][0] = 0.0
-                data_X[i][j][1] = 0.0
-                data_X[i][j][2] = 0.0
-                data_X[i][j][3] = 0.0
-                data_X[i][j][4] = 0.0
-                data_X[i][j][5] = 0.0
-                data_X[i][j][6] = 0.0
-                data_X[i][j][7] = 0.0
-            j = j + 1
-            offset = offset + 1
-
-    return data_X
-
-
-if __name__ == '__main__':
-    Structure_Inf_1(['P13804 0 ADLFKVVPEMTEILKKK---------------- 332\n',
-                   'Q8IZQ5 0 LLRPDGSSAELWTGIKKGPPRKLKFPEPQEVVE 98\n'], windows=16)

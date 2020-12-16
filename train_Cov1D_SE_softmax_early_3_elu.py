@@ -6,8 +6,6 @@ config.gpu_options.allow_growth = True  # 不全部占满显存，按需分配
 # config.gpu_options.per_process_gpu_memory_fraction = 0.3
 session = tf.Session(config=config)
 import numpy as np
-import time
-import matplotlib.pyplot as plt
 from keras.callbacks import EarlyStopping
 from keras import backend as K
 from sklearn import metrics
@@ -16,7 +14,6 @@ from keras.layers import Input, Conv1D, MaxPooling1D, AveragePooling1D, GlobalAv
 from keras.models import Model, load_model
 from keras.regularizers import l1, l2
 from keras.utils import to_categorical
-from scipy.interpolate import interp1d
 
 
 # 定义密集卷积块中单个卷积层
@@ -70,12 +67,8 @@ def squeeze_excitation_layer(x, out_dim, ratio):
                        use_bias=False, kernel_initializer='he_normal')(squeeze)
     excitation = Dense(units=out_dim, activation="sigmoid",
                        kernel_initializer='he_normal')(excitation)
-    excitation = Reshape((1, out_dim))(excitation)
+
     return Multiply()([x, excitation])  # 给通道加权
-    # excitation = tf.reshape(excitation, [-1, out_dim, 1, 1])
-    # excitation = keras.layers.Lambda(lambda excitation_: tf.reshape(excitation_, [-1, out_dim, 1, 1]))(excitation)
-    # scale = x * excitation
-    # return scale
 
 # 构建模型
 def build_model(windows=16, concat_axis=-1, denseblocks=4, layers=3, filters=96,
@@ -213,37 +206,6 @@ def perform_eval_1(predictions, Y_test, verbose=0):
 
     return [sn, sp, acc, pre, f1, mcc, gmean, auroc, aupr]
 
-# 说明： 性能评估函数
-# 输入： predictions 预测结果，Y_test 实际标签，verbose 日志显示，0为不在标准输出流输出日志信息，1为输出进度条记录，2为每个epoch输出一行记录
-# 输出： [sn, sp, acc, pre, f1, mcc, gmean, auroc, aupr] 验证指标结果
-def perform_eval_2(predictions, Y_test, verbose=0):
-    # class_label = np.uint8([round(x) for x in predictions[:, 0]]) # round()函数进行四舍五入
-    # R_ = np.uint8(Y_test)
-    # R = np.asarray(R_)
-    class_label = np.uint8(np.argmax(predictions, axis=1))
-    R = np.asarray(np.uint8([sublist[1] for sublist in Y_test]))
-
-    CM = metrics.confusion_matrix(R, class_label, labels=None)
-    CM = np.double(CM)  # CM[0][0]：TN，CM[0][1]：FP，CM[1][0]：FN，CM[1][1]：TP
-
-    # 计算各项指标
-    sn = (CM[1][1]) / (CM[1][1] + CM[1][0])  # TP/(TP+FN)
-    sp = (CM[0][0]) / (CM[0][0] + CM[0][1])  # TN/(TN+FP)
-    acc = (CM[1][1] + CM[0][0]) / (CM[1][1] + CM[0][0] + CM[0][1] + CM[1][0])  # (TP+TN)/(TP+TN+FP+FN)
-    pre = (CM[1][1]) / (CM[1][1] + CM[0][1])  # TP/(TP+FP)
-    f1 = (2 * CM[1][1]) / (2 * CM[1][1] + CM[0][1] + CM[1][0])  # 2*TP/(2*TP+FP+FN)
-    mcc = (CM[1][1] * CM[0][0] - CM[0][1] * CM[1][0]) / np.sqrt((CM[1][1] + CM[0][1]) * (CM[1][1] + CM[1][0]) * (CM[0][0] + CM[0][1]) * (CM[0][0] + CM[1][0]))  # (TP*TN-FP*FN)/((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN))^1/2
-    gmean = np.sqrt(sn * sp)
-    auroc = metrics.roc_auc_score(y_true=R, y_score=np.asarray(predictions)[:, 1], average="macro")
-    aupr = metrics.average_precision_score(y_true=R, y_score=np.asarray(predictions)[:, 1], average="macro")
-
-    if verbose == 1:
-        print("Sn(Recall):", "{:.4f}".format(sn), "Sp:", "{:.4f}".format(sp), "Acc:", "{:.4f}".format(acc),
-              "Pre(PPV):", "{:.4f}".format(pre), "F1:", "{:.4f}".format(f1), "MCC:", "{:.4f}".format(mcc),
-              "G-mean:", "{:.4f}".format(gmean), "AUROC:", "{:.4f}".format(auroc), "AUPR:", "{:.4f}".format(aupr))
-
-    return [sn, sp, acc, pre, f1, mcc, gmean, auroc, aupr]
-
 # 说明： 实验结果保存到文件
 # 输入： 文件标识符和结果
 # 输出： 无
@@ -263,50 +225,6 @@ def write_res_1(filehandle, res, fold=0):
     filehandle.flush()
     return
 
-# 说明： 实验结果保存到文件
-# 输入： 文件标识符和结果
-# 输出： 无
-def write_res_2(filehandle, res):
-    filehandle.write("Sn(Recall): %s Sp: %s Acc: %s Pre(PPV): %s F1: %s MCC: %s G-mean: %s AUROC: %s AUPR: %s\n" %
-                     ("{:.4f}".format(res[0]),
-                      "{:.4f}".format(res[1]),
-                      "{:.4f}".format(res[2]),
-                      "{:.4f}".format(res[3]),
-                      "{:.4f}".format(res[4]),
-                      "{:.4f}".format(res[5]),
-                      "{:.4f}".format(res[6]),
-                      "{:.4f}".format(res[7]),
-                      "{:.4f}".format(res[8]))
-                     )
-    filehandle.flush()
-    return
-
-# 说明： loss-epoch，acc-epoch曲线作图函数
-def figure(history, K_FOLD, fold):
-
-    def show_train_history(train_history, train_metrics, validation_metrics):
-        plt.plot(train_history.history[train_metrics])
-        plt.plot(train_history.history[validation_metrics])
-        plt.title('Train History', fontdict={'family': 'Times New Roman', 'size': 12})
-        plt.grid(True, alpha=0.4)  # 设置网格线
-        plt.xticks(fontproperties='Times New Roman', size=10)
-        plt.yticks(fontproperties='Times New Roman', size=10)
-        plt.xlabel('epochs', fontdict={'family': 'Times New Roman', 'size': 10})
-        plt.ylabel(train_metrics, fontdict={'family': 'Times New Roman', 'size': 10})
-        plt.legend(['train', 'validation'], loc='upper left', prop={'family': 'Times New Roman', 'size': 10})  # 设置图例位置
-
-    # 画图显示训练过程
-    def plt_fig(history, K_FOLD, fold):
-        plt.figure(figsize=(12, 4))
-        plt.subplot(1, 2, 1)
-        show_train_history(history, 'acc', 'val_acc')
-        plt.subplot(1, 2, 2)
-        show_train_history(history, 'loss', 'val_loss')
-        plt.savefig("./picture/%d折交叉第%d折-elu.png" % (K_FOLD, fold))  # 保存图片
-        plt.close()
-
-    return plt_fig(history, K_FOLD, fold)
-
 
 if __name__ == '__main__':
 
@@ -320,14 +238,6 @@ if __name__ == '__main__':
     res_file = open("./result/cv/yan_res_Cov1D_SE_softmax_early_3_elu.txt", "w", encoding='utf-8')
     # 创建空列表，保存每折的结果
     res = []
-    # 交叉验证开始
-    tprs = []
-    pres = []
-    aurocs = []
-    auprs = []
-    mean_fpr = np.linspace(0, 1, 200)
-    mean_rec = np.linspace(0, 1, 200)
-    plt.figure(figsize=(12, 5))
     # 分层交叉验证
     for fold in range(K_FOLD):
 
@@ -346,7 +256,7 @@ if __name__ == '__main__':
         f_r_test.close()
 
         # 数据编码
-        from information_coding import one_hot, Phy_Chem_Inf_2, Structure_Inf_1
+        from information_coding import one_hot, Phy_Chem_Inf, Structure_Inf
 
         # one_hot编码序列片段
         train_X_1, train_Y = one_hot(train_data, windows=WINDOWS)
@@ -354,11 +264,11 @@ if __name__ == '__main__':
         test_X_1, test_Y = one_hot(test_data, windows=WINDOWS)
         test_Y = to_categorical(test_Y, num_classes=2)
         # 理化属性信息
-        train_X_2 = Phy_Chem_Inf_2(train_data, windows=WINDOWS)
-        test_X_2 = Phy_Chem_Inf_2(test_data, windows=WINDOWS)
+        train_X_2 = Phy_Chem_Inf(train_data, windows=WINDOWS)
+        test_X_2 = Phy_Chem_Inf(test_data, windows=WINDOWS)
         # 蛋白质结构信息
-        train_X_3 = Structure_Inf_1(train_data, windows=WINDOWS)
-        test_X_3 = Structure_Inf_1(test_data, windows=WINDOWS)
+        train_X_3 = Structure_Inf(train_data, windows=WINDOWS)
+        test_X_3 = Structure_Inf(test_data, windows=WINDOWS)
 
         # 引入模型
         model = build_model(windows=WINDOWS)
@@ -379,134 +289,5 @@ if __name__ == '__main__':
         # 将结果写入文件
         write_res_1(res_file, res, fold)
 
-        # 画loss-epoch，acc-epoch曲线
-        figure(history, K_FOLD, fold)
-
-        # 画ROC曲线
-        R = np.asarray(np.uint8([sublist[1] for sublist in test_Y]))
-        plt.subplot(1, 2, 1)
-        fpr, tpr, auc_thresholds = metrics.roc_curve(y_true=R, y_score=np.asarray(predictions)[:, 1], pos_label=1)
-        # 计算AUROC，并保存
-        auroc_score = metrics.auc(fpr, tpr)
-        aurocs.append(auroc_score)
-        # interp1d：1维插值，并把结果添加到tprs列表中
-        f1 = interp1d(fpr, tpr, kind='linear')
-        interp1d_tpr = f1(mean_fpr)
-        interp1d_tpr[0] = 0.0
-        interp1d_tpr[-1] = 1.0
-        tprs.append(interp1d_tpr)
-        # 画图，只需要plt.plot(fpr, tpr)，变量auc_score只是记录auc的值，通过auc()函数计算
-        plt.plot(fpr, tpr, lw=1, alpha=0.4, label='ROC fold %d(area=%0.4f)' % (fold, auroc_score))
-
-        # 画PR曲线
-        plt.subplot(1, 2, 2)
-        precision, recall, pr_thresholds = metrics.precision_recall_curve(y_true=R, probas_pred=np.asarray(predictions)[:, 1], pos_label=1)
-        # 计算AUPR，并保存
-        aupr_score = metrics.auc(recall, precision)
-        auprs.append(aupr_score)
-        # interp1d：1维插值，并把结果添加到pres列表中
-        f2 = interp1d(recall, precision, kind='linear')
-        interp1d_pre = f2(mean_rec)
-        interp1d_pre[0] = 1.0
-        interp1d_pre[-1] = 0.0
-        pres.append(interp1d_pre)
-        # 画图，只需要plt.plot(recall, precision)，变量aupr_score只是记录aupr的值，通过auc()函数计算
-        plt.plot(recall, precision, lw=1, alpha=0.4, label='PR fold %d(area=%0.4f)' % (fold, aupr_score))
-
-        # 保存训练好的模型(既保存了模型图结构，又保存了模型参数)
-        model.save('./model/yan_model_Cov1D_SE_softmax_early_3_elu_fold%d.h5' % fold)
-
-    # 画第一个子图
-    plt.subplot(1, 2, 1)
-    # 画对角线
-    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Chance', alpha=.8)
-    mean_tpr = np.mean(tprs, axis=0)
-    mean_auroc = np.mean(aurocs)
-    std_auroc = np.std(aurocs)
-    plt.plot(mean_fpr, mean_tpr, color='b', label=r'Mean ROC (AUC = %0.4f $\pm$ %0.4f)' % (mean_auroc, std_auroc), lw=2, alpha=.8)
-    # plt.set(xlim=[-0.05, 1.05], xlabel='False Positive Rate', ylim=[-0.05, 1.05], ylabel='True Positive Rate', title="Receiver operating characteristic curves")
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.0])
-    plt.xticks(fontproperties='Times New Roman', size=12)
-    plt.yticks(fontproperties='Times New Roman', size=12)
-    plt.xlabel('False Positive Rate', fontdict={'family': 'Times New Roman', 'size': 12})
-    plt.ylabel('True Positive Rate', fontdict={'family': 'Times New Roman', 'size': 12})
-    plt.title('Receiver operating characteristic curves', fontdict={'family': 'Times New Roman', 'size': 14})
-    plt.legend(loc="lower right", prop={'family': 'Times New Roman', 'size': 8})
-
-    # 画第二个子图
-    plt.subplot(1, 2, 2)
-    mean_pre = np.mean(pres, axis=0)
-    mean_aupr = np.mean(auprs)
-    std_aupr = np.std(auprs)
-    plt.plot(mean_rec, mean_pre, color='b', label=r'Mean PR (AUPR = %0.4f $\pm$ %0.4f)' % (mean_aupr, std_aupr), lw=2, alpha=.8)
-    # plt.set(xlim=[-0.05, 1.05], xlabel='Recall', ylim=[-0.05, 1.05], ylabel='Precision', title="Precision-Recall curves")
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.0])
-    plt.xticks(fontproperties='Times New Roman', size=12)
-    plt.yticks(fontproperties='Times New Roman', size=12)
-    plt.xlabel('Recall', fontdict={'family': 'Times New Roman', 'size': 12})
-    plt.ylabel('Precision', fontdict={'family': 'Times New Roman', 'size': 12})
-    plt.title('Precision-Recall curves', fontdict={'family': 'Times New Roman', 'size': 14})
-    plt.legend(loc="upper right", prop={'family': 'Times New Roman', 'size': 8})
-    plt.savefig("./result/cv/%d折交叉-elu.png" % (K_FOLD))
-    plt.close()
-
     # 关闭文件
     res_file.close()
-    ##########################################################################################
-    time.sleep(1)
-    # 计算10折交叉验证结果每项指标的均值
-    sn = []
-    sp = []
-    acc = []
-    pre = []
-    f1 = []
-    mcc = []
-    gmean = []
-    auroc = []
-    aupr = []
-
-    f_r = open("./result/cv/yan_res_Cov1D_SE_softmax_early_3_elu.txt", "r", encoding='utf-8')
-    lines = f_r.readlines()
-
-    for line in lines:
-        x = line.split()
-        sn.append(float(x[3]))
-        sp.append(float(x[5]))
-        acc.append(float(x[7]))
-        pre.append(float(x[9]))
-        f1.append(float(x[11]))
-        mcc.append(float(x[13]))
-        gmean.append(float(x[15]))
-        auroc.append(float(x[17]))
-        aupr.append(float(x[19]))
-
-    mean_sn = np.mean(sn)
-    mean_sp = np.mean(sp)
-    mean_acc = np.mean(acc)
-    mean_pre = np.mean(pre)
-    mean_f1 = np.mean(f1)
-    mean_mcc = np.mean(mcc)
-    mean_gmean = np.mean(gmean)
-    mean_auroc = np.mean(auroc)
-    mean_aupr = np.mean(aupr)
-
-    std_sn = np.std(sn)
-    std_sp = np.std(sp)
-    std_acc = np.std(acc)
-    std_pre = np.std(pre)
-    std_f1 = np.std(f1)
-    std_mcc = np.std(mcc)
-    std_gmean = np.std(gmean)
-    std_auroc = np.std(auroc)
-    std_aupr = np.std(aupr)
-
-    print("mean_sn:", "{:.4f}".format(mean_sn), "mean_sp:", "{:.4f}".format(mean_sp), "mean_acc:", "{:.4f}".format(mean_acc),
-          "mean_pre:", "{:.4f}".format(mean_pre), "mean_f1:", "{:.4f}".format(mean_f1), "mean_mcc", "{:.4f}".format(mean_mcc),
-          "mean_gmean:", "{:.4f}".format(mean_gmean), "mean_auroc:", "{:.4f}".format(mean_auroc), "mean_aupr:", "{:.4f}".format(mean_aupr))
-    print("std_sn:", "{:.4f}".format(std_sn), "std_sp:", "{:.4f}".format(std_sp), "std_acc:", "{:.4f}".format(std_acc),
-          "std_pre:", "{:.4f}".format(std_pre), "std_f1:", "{:.4f}".format(std_f1), "std_mcc", "{:.4f}".format(std_mcc),
-          "std_gmean:", "{:.4f}".format(std_gmean), "std_auroc:", "{:.4f}".format(std_auroc), "std_aupr:", "{:.4f}".format(std_aupr))
-
-    f_r.close()

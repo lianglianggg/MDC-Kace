@@ -6,7 +6,6 @@ config.gpu_options.allow_growth = True  # 不全部占满显存，按需分配
 # config.gpu_options.per_process_gpu_memory_fraction = 0.3
 session = tf.Session(config=config)
 import numpy as np
-import csv
 from sklearn import metrics
 from keras.models import load_model
 from keras.utils import to_categorical
@@ -80,14 +79,14 @@ if __name__ == '__main__':
     f_r.close()
 
     # 数据编码
-    from information_coding import one_hot, Phy_Chem_Inf_2, Structure_Inf_1
+    from information_coding import one_hot, Phy_Chem_Inf, Structure_Inf
     # one_hot编码序列片段
     test_X_1, test_Y = one_hot(Test_data, windows=WINDOWS)
     test_Y = to_categorical(test_Y, num_classes=2)
     # 理化属性信息
-    test_X_2 = Phy_Chem_Inf_2(Test_data, windows=WINDOWS)
+    test_X_2 = Phy_Chem_Inf(Test_data, windows=WINDOWS)
     # 蛋白质结构信息
-    test_X_3 = Structure_Inf_1(Test_data, windows=WINDOWS)
+    test_X_3 = Structure_Inf(Test_data, windows=WINDOWS)
 
     # 加载模型
     model = load_model(filepath='./model/yan_model_Cov1D_SE_softmax_early_3_elu_fold5.h5')
@@ -108,23 +107,5 @@ if __name__ == '__main__':
     # 将测试集预测结果写入文件
     write_res_2(res_file, res)
     res_file.close()
-
-    # 记录TPR和FPR
-    R = np.asarray(np.uint8([sublist[1] for sublist in test_Y]))
-    fpr, tpr, auc_thresholds = metrics.roc_curve(y_true=R, y_score=np.asarray(predictions)[:, 1], pos_label=1)
-    csvfile = open('./result/test/MDCKace_TPR_FPR.csv', 'w', newline='')
-    writer = csv.writer(csvfile)
-    writer.writerow(['TPR', 'FPR'])
-    for i in range(len(tpr)):
-        writer.writerow([tpr[i], fpr[i]])
-    csvfile.close()
-    # 记录Recall和Precision
-    precision, recall, pr_thresholds = metrics.precision_recall_curve(y_true=R, probas_pred=np.asarray(predictions)[:, 1], pos_label=1)
-    csvfile = open('./result/test/MDCKace_P_R.csv', 'w', newline='')
-    writer = csv.writer(csvfile)
-    writer.writerow(['Precision', 'Recall'])
-    for i in range(len(precision)):
-        writer.writerow([precision[i], recall[i]])
-    csvfile.close()
 
     print("Test data predicted Successfully!!")
